@@ -27,14 +27,14 @@ func main() {
 
 	client := retroachievements.NewClient(secret)
 
-	resp, err := client.GetGameExtended(models.GetGameExtentedParameters{
+	gameData, err := client.GetGameExtended(models.GetGameExtentedParameters{
 		GameID: gameID,
 	})
 	if err != nil {
 		log.Fatalf("Error on RA call GetGameExtended with game id %d: %s", gameID, err.Error())
 	}
 
-	if resp == nil {
+	if gameData == nil {
 		log.Fatalf("No game found for id %d", gameID)
 	}
 
@@ -49,11 +49,22 @@ func main() {
 		log.Fatalf("No code notes found for id %d", gameID)
 	}
 
+	leaderboards, err := client.GetGameLeaderboards(models.GetGameLeaderboardsParameters{
+		GameID: gameID,
+	})
+	if err != nil {
+		log.Fatalf("Error on RA call GetGameLeaderboards with game id %d: %s", gameID, err.Error())
+	}
+
+	if leaderboards == nil {
+		log.Fatalf("No leaderboards found for id %d", gameID)
+	}
+
 	achievementTableOfContents := []string{}
 	sortedAchievements := []models.GetGameExtentedAchievement{}
 
-	for i := range resp.Achievements {
-		achievement := resp.Achievements[i]
+	for i := range gameData.Achievements {
+		achievement := gameData.Achievements[i]
 		sortedAchievements = append(sortedAchievements, achievement)
 	}
 
@@ -73,15 +84,20 @@ func main() {
 		codeNotesTableOfContents = append(codeNotesTableOfContents, markdown.Link(fmt.Sprintf("Code Note %s", codeNote.Address), fmt.Sprintf("#code-note-%s", codeNote.Address)))
 	}
 
+	leaderboardsTableOfContents := []string{}
+	for i := range leaderboards.Results {
+		leaderboard := leaderboards.Results[i]
+		leaderboardsTableOfContents = append(leaderboardsTableOfContents, markdown.Link(fmt.Sprintf("%s (Leaderboard %d)", leaderboard.Title, leaderboard.ID), fmt.Sprintf("#leaderboard-%d", leaderboard.ID)))
+	}
+
 	doc := markdown.NewMarkdown(os.Stdout)
-	doc.H1f("Design Doc for %s", resp.Title)
+	doc.H1f("Design Doc for %s", gameData.Title)
 	doc.H2("Table of Contents")
 	doc.OrderedList([]string{
 		markdown.Link("About", "#about"),
 		markdown.Link("Learnings", "#learnings"),
 		markdown.Link("Code Notes", "#code-notes"),
 		markdown.Link("Achievements", "#achievements"),
-		markdown.Link("Rich Presence", "#rich-presence"),
 		markdown.Link("Leaderboards", "#leaderboards"),
 	}...)
 	doc.H2("About")
@@ -105,7 +121,17 @@ func main() {
 		achievement := sortedAchievements[i]
 		addAchievement(doc, achievement)
 	}
-	// Do stuff here
+	doc.H2("Leaderboards")
+	doc.PlainTextf("<sub>%s</sub>", markdown.Link("Back to Table of Contents", "#table-of-contents"))
+	doc.H3("Leaderboards Navigation")
+	doc.OrderedList(leaderboardsTableOfContents...)
+	for i := range leaderboards.Results {
+		leaderboard := leaderboards.Results[i]
+		doc.H3f(markdown.Link(fmt.Sprintf("Leaderboard %d", leaderboard.ID), fmt.Sprintf("https://retroachievements.org/leaderboardinfo.php?i=%d", leaderboard.ID)))
+		doc.PlainTextf("<sub>%s</sub><br>", markdown.Link("Back to navigation", "#code-notes-navigation"))
+		doc.PlainTextf("<br>Title: %s<br><br>", leaderboard.Title)
+		doc.PlainText(leaderboard.Description)
+	}
 	doc.Build()
 }
 
