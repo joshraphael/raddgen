@@ -102,6 +102,8 @@ func main() {
 	}...)
 	doc.H2("About")
 	doc.PlainTextf("<sub>%s</sub>", markdown.Link("Back to Table of Contents", "#table-of-contents"))
+	doc.H2("Learnings")
+	doc.PlainTextf("<sub>%s</sub>", markdown.Link("Back to Table of Contents", "#table-of-contents"))
 	doc.H2("Code Notes")
 	doc.PlainTextf("<sub>%s</sub>", markdown.Link("Back to Table of Contents", "#table-of-contents"))
 	doc.H3("Code Notes Navigation")
