@@ -1,2 +1,2 @@
 run:
-	go run main.go 4111222222222
+	go run main.go 4111 > out/DESIGN.md
