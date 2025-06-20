@@ -90,8 +90,15 @@ func main() {
 		leaderboardsTableOfContents = append(leaderboardsTableOfContents, markdown.Link(fmt.Sprintf("%s (Leaderboard %d)", leaderboard.Title, leaderboard.ID), fmt.Sprintf("#leaderboard-%d", leaderboard.ID)))
 	}
 
+	aboutContents := []string{
+		markdown.Link("Game Page", fmt.Sprintf("https://retroachievements.org/game/%d", gameData.ID)),
+	}
+	if gameData.ForumTopicID != nil {
+		aboutContents = append(aboutContents, markdown.Link("Forum Topic", fmt.Sprintf("https://retroachievements.org/forums/topic/%d", *gameData.ForumTopicID)))
+	}
+
 	doc := markdown.NewMarkdown(os.Stdout)
-	doc.H1f("Design Doc for %s", gameData.Title)
+	doc.H1f("Design Doc for %s", markdown.Link(gameData.Title, fmt.Sprintf("https://retroachievements.org/game/%d", gameData.ID)))
 	doc.H2("Table of Contents")
 	doc.OrderedList([]string{
 		markdown.Link("About", "#about"),
@@ -102,6 +109,7 @@ func main() {
 	}...)
 	doc.H2("About")
 	doc.PlainTextf("<sub>%s</sub>", markdown.Link("Back to Table of Contents", "#table-of-contents"))
+	doc.BulletList(aboutContents...)
 	doc.H2("Learnings")
 	doc.PlainTextf("<sub>%s</sub>", markdown.Link("Back to Table of Contents", "#table-of-contents"))
 	doc.H2("Code Notes")
@@ -130,7 +138,7 @@ func main() {
 	for i := range leaderboards.Results {
 		leaderboard := leaderboards.Results[i]
 		doc.H3f(markdown.Link(fmt.Sprintf("Leaderboard %d", leaderboard.ID), fmt.Sprintf("https://retroachievements.org/leaderboardinfo.php?i=%d", leaderboard.ID)))
-		doc.PlainTextf("<sub>%s</sub><br>", markdown.Link("Back to navigation", "#code-notes-navigation"))
+		doc.PlainTextf("<sub>%s</sub><br>", markdown.Link("Back to navigation", "#leaderboards-navigation"))
 		doc.PlainTextf("<br>Title: %s<br><br>", leaderboard.Title)
 		doc.PlainText(leaderboard.Description)
 	}
