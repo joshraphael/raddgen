@@ -6,8 +6,10 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/joshraphael/go-retroachievements"
 	"github.com/joshraphael/go-retroachievements/models"
@@ -37,6 +39,48 @@ func main() {
 	if gameData == nil {
 		log.Fatalf("No game found for id %d", gameID)
 	}
+
+	assetTableOfContents := []string{}
+	assets := map[string]string{} // header -> id
+	err = downloadImage(gameData.ImageIcon, "out")
+	if err != nil {
+		log.Fatalf("Error getting icon image %s: %s", gameData.ImageIcon, err.Error())
+	}
+	header := "Game Icon"
+	iconImageID := strings.ReplaceAll(gameData.ImageIcon, "/Images/", "")
+	iconImageID = strings.ReplaceAll(iconImageID, ".png", "")
+	assetTableOfContents = append(assetTableOfContents, markdown.Link(header, "#game-icon"))
+	assets[header] = iconImageID
+
+	err = downloadImage(gameData.ImageBoxArt, "out")
+	if err != nil {
+		log.Fatalf("Error getting box art image %s: %s", gameData.ImageBoxArt, err.Error())
+	}
+	header = "Box Art"
+	boxArtImageID := strings.ReplaceAll(gameData.ImageBoxArt, "/Images/", "")
+	boxArtImageID = strings.ReplaceAll(boxArtImageID, ".png", "")
+	assetTableOfContents = append(assetTableOfContents, markdown.Link(header, "#box-art"))
+	assets[header] = boxArtImageID
+
+	err = downloadImage(gameData.ImageTitle, "out")
+	if err != nil {
+		log.Fatalf("Error getting title image %s: %s", gameData.ImageTitle, err.Error())
+	}
+	header = "Title Screen"
+	titleImageID := strings.ReplaceAll(gameData.ImageTitle, "/Images/", "")
+	titleImageID = strings.ReplaceAll(titleImageID, ".png", "")
+	assetTableOfContents = append(assetTableOfContents, markdown.Link(header, "#title-screen"))
+	assets[header] = titleImageID
+
+	err = downloadImage(gameData.ImageIngame, "out")
+	if err != nil {
+		log.Fatalf("Error getting in-game image %s: %s", gameData.ImageIngame, err.Error())
+	}
+	header = "In-Game"
+	inGameImageID := strings.ReplaceAll(gameData.ImageIngame, "/Images/", "")
+	inGameImageID = strings.ReplaceAll(inGameImageID, ".png", "")
+	assetTableOfContents = append(assetTableOfContents, markdown.Link(header, "#in-game"))
+	assets[header] = inGameImageID
 
 	codeNotes, err := client.GetCodeNotes(models.GetCodeNotesParameters{
 		GameID: gameID,
@@ -75,7 +119,7 @@ func main() {
 	for i := range sortedAchievements {
 		achievement := sortedAchievements[i]
 		achievementTableOfContents = append(achievementTableOfContents, markdown.Link(fmt.Sprintf("%s (Achievement %d)", achievement.Title, achievement.ID), fmt.Sprintf("#achievement-%d", achievement.ID)))
-		downloadImage(achievement.BadgeName, "out/badges")
+		downloadImage(fmt.Sprintf("/Badge/%s.png", achievement.BadgeName), "out")
 	}
 
 	codeNotesTableOfContents := []string{}
@@ -101,17 +145,24 @@ func main() {
 	doc.H1f("Design Doc for %s", markdown.Link(gameData.Title, fmt.Sprintf("https://retroachievements.org/game/%d", gameData.ID)))
 	doc.H2("Table of Contents")
 	doc.OrderedList([]string{
+		markdown.Link("Assets", "#assets"),
 		markdown.Link("About", "#about"),
-		markdown.Link("Learnings", "#learnings"),
 		markdown.Link("Code Notes", "#code-notes"),
 		markdown.Link("Achievements", "#achievements"),
 		markdown.Link("Leaderboards", "#leaderboards"),
 	}...)
+	doc.H2("Assets")
+	doc.PlainTextf("<sub>%s</sub>", markdown.Link("Back to Table of Contents", "#table-of-contents"))
+	doc.H3("Assets Navigation")
+	doc.OrderedList(assetTableOfContents...)
+	for i := range assets {
+		header := i
+		id := assets[header]
+		addAsset(doc, header, id)
+	}
 	doc.H2("About")
 	doc.PlainTextf("<sub>%s</sub>", markdown.Link("Back to Table of Contents", "#table-of-contents"))
 	doc.BulletList(aboutContents...)
-	doc.H2("Learnings")
-	doc.PlainTextf("<sub>%s</sub>", markdown.Link("Back to Table of Contents", "#table-of-contents"))
 	doc.H2("Code Notes")
 	doc.PlainTextf("<sub>%s</sub>", markdown.Link("Back to Table of Contents", "#table-of-contents"))
 	doc.H3("Code Notes Navigation")
@@ -145,6 +196,13 @@ func main() {
 	doc.Build()
 }
 
+func addAsset(doc *markdown.Markdown, header, id string) {
+	assetPath := fmt.Sprintf("Images/%s.png", id)
+	doc.H3f(markdown.Link(header, fmt.Sprintf("https://media.retroachievements.org/%s", assetPath)))
+	doc.PlainTextf("<sub>%s</sub><br>", markdown.Link("Back to navigation", "#assets-navigation"))
+	doc.PlainText(fmt.Sprintf("<br>%s<br>", markdown.Image(assetPath, assetPath)))
+}
+
 func addAchievement(doc *markdown.Markdown, achievement models.GetGameExtentedAchievement) {
 	doc.H3f(markdown.Link(fmt.Sprintf("Achievement %d", achievement.ID), fmt.Sprintf("https://retroachievements.org/achievement/%d", achievement.ID)))
 	doc.PlainTextf("<sub>%s</sub><br>", markdown.Link("Back to navigation", "#achievements-navigation"))
@@ -154,14 +212,14 @@ func addAchievement(doc *markdown.Markdown, achievement models.GetGameExtentedAc
 		doc.PlainTextf("<br>Type: %s", markdown.BoldItalic(achievement.Type))
 	}
 	doc.PlainText(fmt.Sprintf("<br>Points: %s", markdown.Bold(fmt.Sprintf("%d", achievement.Points))))
-	doc.PlainText(fmt.Sprintf("<br>%s<br>", markdown.Image(achievement.Title, fmt.Sprintf("badges/%s.png", achievement.BadgeName))))
+	doc.PlainText(fmt.Sprintf("<br>%s<br>", markdown.Image(achievement.Title, fmt.Sprintf("Badge/%s.png", achievement.BadgeName))))
 	doc.PlainText(achievement.Description)
 }
 
-func downloadImage(imageID, downloadPath string) (err error) {
-	file_name := fmt.Sprintf("%s/%s.png", downloadPath, imageID)
+func downloadImage(imagePath, downloadPath string) (err error) {
+	file_name := fmt.Sprintf("%s%s", downloadPath, imagePath)
 	if _, err := os.Stat(file_name); os.IsNotExist(err) {
-		url := fmt.Sprintf("https://media.retroachievements.org/Badge/%s.png", imageID)
+		url := fmt.Sprintf("https://media.retroachievements.org%s", imagePath)
 		head, e := http.Head(url)
 		if e != nil {
 			return err
@@ -177,10 +235,12 @@ func downloadImage(imageID, downloadPath string) (err error) {
 			}
 			defer response.Body.Close()
 			if response.StatusCode == http.StatusOK {
-				err := os.MkdirAll(downloadPath, 0777)
+				dirPath := filepath.Dir(file_name)
+				err := os.MkdirAll(dirPath, 0777)
 				if err != nil {
 					return err
 				}
+
 				//open a file for writing
 				file, err := os.Create(file_name)
 				if err != nil {
